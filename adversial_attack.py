@@ -5,8 +5,10 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
+
 model = torch.load('/home/rhossain/exp/checkpoint/ckpt_relu_modelVGG16_fullModel_budget_0.01.pth')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # Data
 print('==> Preparing data..')
 transform_train = transforms.Compose([
