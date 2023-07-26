@@ -10,23 +10,18 @@ import torchvision.transforms as transforms
 
 import os
 import argparse
-import torchattacks
+
 from models import *
 from utils import progress_bar
-from losses import ReluLoss
-import pickle
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--budget', default=0.01, type=float, help='relu budget')
-parser.add_argument('--device', default='cuda', type=str, help='device')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
 
-device = torch.device(args.device)
-print(device)
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
@@ -44,15 +39,8 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-# class CIFAR10MOD(torchvision.datasets.CIFAR10):
-#     def __init__(self, *args, **kwargs):
-#         return super(CIFAR10MOD, self).__init__(*args, **kwargs)
-        
-#     def __getitem__(self, index):
-#         return super(CIFAR10MOD, self).__getitem__(index), index
-    
-# trainset = CIFAR10MOD( root='./data', train=True, download=True, transform=transform_train)
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+trainset = torchvision.datasets.CIFAR10(
+    root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=128, shuffle=True, num_workers=2)
 
@@ -64,24 +52,10 @@ testloader = torch.utils.data.DataLoader(
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
 
-
-# adv_examples = []
-
-# for batch_idx, (inputs, targets) in enumerate(trainloader):
-#     inputs, targets = inputs.to(device), targets.to(device)
-#     adv_data = atk(inputs, targets)
-#     adv_examples.append((adv_data, targets))
-    
 # Model
 print('==> Building model..')
-
-model_name = 'VGG16'
-# net = VGG('VGG16')
-net = VGGMod(model_name,layer='last')
-
-print(net)
-
-# net = ResNet18()
+net = VGG('VGG16mod')
+#net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -94,11 +68,11 @@ print(net)
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
-# net = SimpleDLA()
+#net = SimpleDLA()
 net = net.to(device)
-if device == 'cuda':
-    # net = torch.nn.DataParallel(net)
-    cudnn.benchmark = True
+# if device == 'cuda':
+#     net = torch.nn.DataParallel(net)
+#     cudnn.benchmark = True
 
 """ if args.resume:
     # Load checkpoint.
@@ -109,16 +83,12 @@ if device == 'cuda':
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch'] """
 
-
-atk = torchattacks.PGD(net, eps=0.031, alpha=.01, steps=7, random_start=True)
-atk.set_normalization_used(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
-
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=240)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
-loss_relu = ReluLoss(args.budget)
+
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -126,16 +96,11 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx,(inputs, targets) in enumerate(trainloader):
+    for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
-        adv_data = atk(inputs, targets)
         optimizer.zero_grad()
         outputs = net(inputs)
-        loss = criterion(outputs, targets) 
-        adv_outputs = net(adv_data.to(device))
-        adv_loss = criterion(adv_outputs, targets)
-        loss1 = loss_relu(net)
-        loss = loss + adv_loss + loss1
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
@@ -144,10 +109,8 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-        #              % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-    
-    print(f'Train Loss: {(train_loss/(batch_idx+1)):.3f}, Train Acc: {(100.*correct/total):.3f}')
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
 def test(epoch):
@@ -170,35 +133,27 @@ def test(epoch):
 
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-        
-        print(f'Test Loss: {test_loss/(batch_idx+1):.3f}, Test Acc: {100.*correct/total:.3f}')
 
     # Save checkpoint.
     acc = 100.*correct/total
     if acc > best_acc:
         print('Saving..')
+        # state = {
+        #     'net': net.state_dict(),
+        #     'acc': acc,
+        #     'epoch': epoch,
+        # }
         # if not os.path.isdir('checkpoint'):
         #     os.mkdir('checkpoint')
-        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.pth')
-        best_acc = acc
+        # torch.save(state, './checkpoint/ckpt.pth')
+        # best_acc = acc
+        torch.save(net , '/home/rhossain/exp/checkpoint/ckpt_VGGx2_last2layers_cifar10_fullModel.pth')
 
-# saving in a txt file
-f = open(f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.txt', 'a')
+f = open(f'/home/rhossain/exp/checkpoint/ckpt_VGGx2_last2layers_cifar10_fullModel.txt', 'a')
 f.write(f'{net}\n')
 
 for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)
     scheduler.step()
-
-    total = 0
-    relu_applied = 0
-    for m in net.modules():
-        if isinstance(m, TrainableReLU):
-            mask = torch.sigmoid(m.mask)
-            relu_applied += sum(mask.ge(0.5)).float()
-            total += len(mask)
-    print(f'percentage relu: {100 * relu_applied/total:.5f}')
-    f.write(f'epoch: {epoch} percentage relu: {100 * relu_applied/total:.5f} accuracy {acc}\n')
-    #f.write(f'epoch: {epoch}  accuracy {acc}\n')
-            
+    f.write(f'epoch: {epoch}  accuracy {acc}\n')

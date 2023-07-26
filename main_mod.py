@@ -10,17 +10,16 @@ import torchvision.transforms as transforms
 
 import os
 import argparse
-import torchattacks
+
 from models import *
-from utils import progress_bar
+# from utils import progress_bar
 from losses import ReluLoss
-import pickle
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--budget', default=0.01, type=float, help='relu budget')
-parser.add_argument('--device', default='cuda', type=str, help='device')
+parser.add_argument('--device', default='cuda:1', type=str, help='device')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
@@ -44,40 +43,25 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-# class CIFAR10MOD(torchvision.datasets.CIFAR10):
-#     def __init__(self, *args, **kwargs):
-#         return super(CIFAR10MOD, self).__init__(*args, **kwargs)
-        
-#     def __getitem__(self, index):
-#         return super(CIFAR10MOD, self).__getitem__(index), index
-    
-# trainset = CIFAR10MOD( root='./data', train=True, download=True, transform=transform_train)
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+trainset = torchvision.datasets.CIFAR10(
+    root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=128, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=100, shuffle=False, num_workers=2)
+    testset, batch_size=128, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
 
-
-# adv_examples = []
-
-# for batch_idx, (inputs, targets) in enumerate(trainloader):
-#     inputs, targets = inputs.to(device), targets.to(device)
-#     adv_data = atk(inputs, targets)
-#     adv_examples.append((adv_data, targets))
-    
 # Model
 print('==> Building model..')
 
-model_name = 'VGG16'
+model_name = 'VGG16mod'
 # net = VGG('VGG16')
-net = VGGMod(model_name,layer='last')
+net = VGGMod(model_name)
 
 print(net)
 
@@ -96,7 +80,7 @@ print(net)
 # net = RegNetX_200MF()
 # net = SimpleDLA()
 net = net.to(device)
-if device == 'cuda':
+if device == 'cuda:1':
     # net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
@@ -108,10 +92,6 @@ if device == 'cuda':
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch'] """
-
-
-atk = torchattacks.PGD(net, eps=0.031, alpha=.01, steps=7, random_start=True)
-atk.set_normalization_used(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
@@ -126,16 +106,14 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx,(inputs, targets) in enumerate(trainloader):
+    for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
-        adv_data = atk(inputs, targets)
         optimizer.zero_grad()
         outputs = net(inputs)
         loss = criterion(outputs, targets) 
-        adv_outputs = net(adv_data.to(device))
-        adv_loss = criterion(adv_outputs, targets)
         loss1 = loss_relu(net)
-        loss = loss + adv_loss + loss1
+        # print(loss1)
+        loss = loss + loss1
         loss.backward()
         optimizer.step()
 
@@ -168,8 +146,8 @@ def test(epoch):
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            # progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #              % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
         
         print(f'Test Loss: {test_loss/(batch_idx+1):.3f}, Test Acc: {100.*correct/total:.3f}')
 
@@ -179,11 +157,11 @@ def test(epoch):
         print('Saving..')
         # if not os.path.isdir('checkpoint'):
         #     os.mkdir('checkpoint')
-        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.pth')
+        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_VGG16x2_first2layers_budget_{args.budget}.pth')
         best_acc = acc
 
 # saving in a txt file
-f = open(f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.txt', 'a')
+f = open(f'/home/rhossain/exp/checkpoint/ckpt_VGG16x2_first2layers_budget_{args.budget}.txt', 'a')
 f.write(f'{net}\n')
 
 for epoch in range(start_epoch, start_epoch+200):
@@ -200,5 +178,4 @@ for epoch in range(start_epoch, start_epoch+200):
             total += len(mask)
     print(f'percentage relu: {100 * relu_applied/total:.5f}')
     f.write(f'epoch: {epoch} percentage relu: {100 * relu_applied/total:.5f} accuracy {acc}\n')
-    #f.write(f'epoch: {epoch}  accuracy {acc}\n')
             
