@@ -14,13 +14,14 @@ import torchattacks
 from models import *
 from utils import progress_bar
 from losses import ReluLoss
+#from resnet import resnet20relu , TrainableReLU
 import pickle
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--budget', default=0.01, type=float, help='relu budget')
-parser.add_argument('--device', default='cuda', type=str, help='device')
+parser.add_argument('--device', default='cuda:1', type=str, help='device')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
@@ -75,10 +76,10 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 
-model_name = 'VGG16'
+model_name = 'VGG11x2last'
 # net = VGG('VGG16')
 net = VGGMod(model_name,layer='last')
-
+#net = resnet20relu(1)
 print(net)
 
 # net = ResNet18()
@@ -96,7 +97,7 @@ print(net)
 # net = RegNetX_200MF()
 # net = SimpleDLA()
 net = net.to(device)
-if device == 'cuda':
+if device == 'cuda:1':
     # net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
@@ -179,11 +180,11 @@ def test(epoch):
         print('Saving..')
         # if not os.path.isdir('checkpoint'):
         #     os.mkdir('checkpoint')
-        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.pth')
+        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.pth')
         best_acc = acc
 
 # saving in a txt file
-f = open(f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG16_last2layers_cifar10_budget{args.budget}.txt', 'a')
+f = open(f'/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.txt', 'a')
 f.write(f'{net}\n')
 
 for epoch in range(start_epoch, start_epoch+200):

@@ -1,8 +1,8 @@
 import torch 
 from torch import nn
 from torch.nn import functional as F
+#from resnet import TrainableReLU
 from models.vgg import TrainableReLU
-
 
 class ReluLoss(nn.Module):
     def __init__(self, budget=0.5, threshold=0.5):
@@ -17,7 +17,7 @@ class ReluLoss(nn.Module):
                 # mask = torch.sigmoid(m.mask)
                 # loss += mask.ge(self.threshold).float().sum() / len(mask)
                 # loss += torch.abs(torch.sigmoid(m.mask).mean() - 0.5)
-                # print('dhukse')
+                #print('dhukse')
                 loss += torch.abs(torch.quantile(torch.sigmoid(m.mask), 1.0-self.budget) - self.threshold)
         return loss
     

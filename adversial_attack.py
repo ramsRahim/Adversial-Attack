@@ -6,8 +6,8 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 
-model = torch.load('/home/rhossain/exp/checkpoint/ckpt_adversarial_VGGx2_first2layers_cifar10_budget0.01.pth')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = torch.load('/home/rhossain/exp/checkpoint/ckpt_adversarial_VGG11_relu_last2layers_budget_0.01.pth')
+device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 # Data
 print('==> Preparing data..')
@@ -50,8 +50,8 @@ def attack():
     acc = 100.*correct/total
     print(f'Test Accuracy {acc:.3f}')
     # saving in a txt file
-    with open('/home/rhossain/exp/checkpoint/ckpt_adverserial_attack_VGGx2_first2layers_cifar10_budget_0.01.txt', 'a') as f:
-        f.write(f'eplison: 0.031 , step: 7, alpha: .01 #training\n')
+    with open('/home/rhossain/exp/checkpoint/ckpt_adverserial_attack_VGG11_relu_last2layers_budget_0.01.txt', 'a') as f:
+        f.write(f'eplison: 0.031 , step: 7, alpha: .01 #Training\n')
         f.write(f'Accuracy of the network on the 10000 test images: %.3f %%\n' % (acc))
 
 attack()

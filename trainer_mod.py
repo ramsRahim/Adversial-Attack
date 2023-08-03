@@ -11,15 +11,16 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-from models import *
+from resnet import resnet20relu , TrainableReLU
 # from utils import progress_bar
 from losses import ReluLoss
+from resnet import *
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--budget', default=0.01, type=float, help='relu budget')
-parser.add_argument('--device', default='cuda', type=str, help='device')
+parser.add_argument('--device', default='cuda:1', type=str, help='device')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
@@ -59,9 +60,8 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 
-model_name = 'VGG11x2last'
 # net = VGG('VGG16')
-net = VGGMod(model_name, layer='last')
+net = resnet20relu(1)
 
 print(net)
 
@@ -80,7 +80,7 @@ print(net)
 # net = RegNetX_200MF()
 # net = SimpleDLA()
 net = net.to(device)
-if device == 'cuda':
+if device == 'cuda:1':
     # net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
@@ -94,8 +94,7 @@ if device == 'cuda':
     start_epoch = checkpoint['epoch'] """
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr,
-                      momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(net.parameters(), lr=args.lr,momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=240)
 
 loss_relu = ReluLoss(args.budget)
@@ -112,7 +111,7 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets) 
         loss1 = loss_relu(net)
-        # print(loss1)
+        #print(loss1)
         loss = loss + loss1
         loss.backward()
         optimizer.step()
@@ -155,13 +154,18 @@ def test(epoch):
     acc = 100.*correct/total
     if acc > best_acc:
         print('Saving..')
+        state = {
+            'net': net.state_dict(),
+            'acc': acc,
+            'epoch': epoch,
+        }
         # if not os.path.isdir('checkpoint'):
         #     os.mkdir('checkpoint')
-        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.pth')
+        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_resnet20x2first2layers_relu_first2layers_budget{args.budget}.pth')
         best_acc = acc
 
 # saving in a txt file
-f = open(f'/home/rhossain/exp/checkpoint/ckpt_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.txt', 'a')
+f = open(f'/home/rhossain/exp/checkpoint/ckpt_resnet20x2first2layers_relu_first2layers_budget{args.budget}.txt', 'a')
 f.write(f'{net}\n')
 
 for epoch in range(start_epoch, start_epoch+200):
@@ -178,4 +182,5 @@ for epoch in range(start_epoch, start_epoch+200):
             total += len(mask)
     print(f'percentage relu: {100 * relu_applied/total:.5f}')
     f.write(f'epoch: {epoch} percentage relu: {100 * relu_applied/total:.5f} accuracy {acc}\n')
+    #f.write(f'epoch: {epoch}  accuracy {acc}\n')
             

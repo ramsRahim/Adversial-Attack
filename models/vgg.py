@@ -7,12 +7,14 @@ from torch.nn import functional as F
 
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG11x2first' : [64*2, 'M', 128*2, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG11x2last' : [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512*2, 512*2, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
     'VGG16x3': [64*3, 64*3, 'M', 128*3, 128*3, 'M', 256*3, 256*3, 256*3, 'M', 512*3, 512*3, 512*3, 'M', 512*3, 512*3, 512*3, 'M'],
     'VGG16x2first' : [64*2, 64*2, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG16x2last' : [64*2, 64*2, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512*2, 512*2, 'M'],
+    'VGG16x2last' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512*2, 512*2, 'M'],
 }
 
 
@@ -66,14 +68,11 @@ class VGGMod(nn.Module):
     def __init__(self, vgg_name,layer=None, mask_type='channel'):
         super(VGGMod, self).__init__()
         self.layer = layer
-        if vgg_name == 'VGG16x2first':
-            self.layer = 'first'
-        elif vgg_name == 'VGG16x2last':
-            self.layer = 'last'
+        self.name = vgg_name
         self.features = self._make_layers(cfg[vgg_name])
         if vgg_name == 'VGG16x3':
             self.classifier = nn.Linear(512*3, 10)
-        elif self.layer == 'VGG16x2last':
+        elif vgg_name == 'VGG16x2last' or vgg_name == 'VGG11x2last':
             self.classifier = nn.Linear(512*2, 10)
         else:
             self.classifier = nn.Linear(512, 10)
@@ -92,22 +91,31 @@ class VGGMod(nn.Module):
             
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+                
+            elif self.layer == 'first' and (self.name  == 'VGG11' or self.name == 'VGG11x2first' or self.name == 'VGG11x2last') and (i == 0 or i ==2):
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                           nn.BatchNorm2d(x),
+                           TrainableReLU(x)]
+                in_channels = x
+                            
+            elif self.layer =='first' and (self.name  == 'VGG16' or self.name == 'VGG16x2first' or self.name == 'VGG16x2last') and (i == 0 or i == 1):
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                           nn.BatchNorm2d(x),
+                           TrainableReLU(x)]
+                in_channels = x
             
             elif self.layer == 'last' and (i == len(cfg)-3 or i == len(cfg)-2):
                 layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
                            nn.BatchNorm2d(x),
                            TrainableReLU(x)]
                 in_channels = x
-            elif self.layer =='first' and (i == 0 or i == 1):
-                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
-                           nn.BatchNorm2d(x),
-                           TrainableReLU(x)]
-                in_channels = x
+            
             else:
                 layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
                            nn.BatchNorm2d(x),
                            nn.ReLU(inplace=True)]
                 in_channels = x
+                
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
     
