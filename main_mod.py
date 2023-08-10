@@ -13,8 +13,8 @@ import argparse
 
 from models import *
 # from utils import progress_bar
-from losses import ReluLoss
-
+from losses import ReluMaskL1Loss
+from models.vgg import TrainableReLU, VGGMod
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -59,9 +59,9 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 
-model_name = 'VGG11x2last'
+model_name = 'VGG11'
 # net = VGG('VGG16')
-net = VGGMod(model_name, layer='last')
+net = VGGMod(model_name)
 
 print(net)
 
@@ -98,7 +98,8 @@ optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=240)
 
-loss_relu = ReluLoss(args.budget)
+loss_relu = ReluMaskL1Loss()
+lamb = .00001
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -112,8 +113,8 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets) 
         loss1 = loss_relu(net)
-        # print(loss1)
-        loss = loss + loss1
+        #print(loss1)
+        loss = loss + lamb*loss1
         loss.backward()
         optimizer.step()
 
@@ -157,11 +158,11 @@ def test(epoch):
         print('Saving..')
         # if not os.path.isdir('checkpoint'):
         #     os.mkdir('checkpoint')
-        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.pth')
+        torch.save(net, f'/home/rhossain/exp/checkpoint/ckpt_VGG11_reluElemination.pth')
         best_acc = acc
 
 # saving in a txt file
-f = open(f'/home/rhossain/exp/checkpoint/ckpt_VGG11x2last2layers_relu_last2layers_budget_{args.budget}.txt', 'a')
+f = open(f'/home/rhossain/exp/checkpoint/ckpt_VGG11_reluElemination.txt', 'a')
 f.write(f'{net}\n')
 
 for epoch in range(start_epoch, start_epoch+200):

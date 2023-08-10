@@ -20,6 +20,18 @@ class ReluLoss(nn.Module):
                 #print('dhukse')
                 loss += torch.abs(torch.quantile(torch.sigmoid(m.mask), 1.0-self.budget) - self.threshold)
         return loss
+
+class ReluMaskL1Loss(nn.Module):
+    def __init__(self):
+        super(ReluMaskL1Loss, self).__init__()
+
+    def forward(self, net):
+        loss = 0
+        for m in net.modules():
+            if isinstance(m, TrainableReLU):
+                #print(m.mask)
+                loss += torch.abs(torch.sigmoid(m.mask)).sum()
+        return loss
     
 class ReluLossNew(nn.Module):
     def __init__(self, budget=0.5, threshold=0.5):

@@ -64,9 +64,9 @@ class TrainableReLU(nn.Module):
         return x
 
 
-class VGGMod(nn.Module):
+class VGGModlayer(nn.Module):
     def __init__(self, vgg_name,layer=None, mask_type='channel'):
-        super(VGGMod, self).__init__()
+        super(VGGModlayer, self).__init__()
         self.layer = layer
         self.name = vgg_name
         self.features = self._make_layers(cfg[vgg_name])
@@ -171,6 +171,31 @@ class VGGModPixelWise(nn.Module):
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
 
+class VGGMod(nn.Module):
+    def __init__(self, vgg_name):
+        super(VGGMod, self).__init__()
+        self.features = self._make_layers(cfg[vgg_name])
+        self.classifier = nn.Linear(512, 10)
+
+    def forward(self, x):
+        out = self.features(x)
+        out = out.view(out.size(0), -1)
+        out = self.classifier(out)
+        return out
+
+    def _make_layers(self, cfg):
+        layers = []
+        in_channels = 3
+        for x in cfg:
+            if x == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            else:
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                           nn.BatchNorm2d(x),
+                           TrainableReLU(x)]
+                in_channels = x
+        layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
+        return nn.Sequential(*layers)
 
 
 def test():
